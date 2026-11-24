@@ -128,5 +128,41 @@ public class Main {
             System.out.println("Modified IV Detected!");
             System.out.println("AES-GCM rejected decryption: " + e.getMessage());
         }
+
+        // ==========================================
+        // Hybrid Encryption Demo (RSA + AES-GCM)
+        // ==========================================
+        System.out.println("\n--- Hybrid Encryption Demo ---");
+
+        // Step 1: Generate recipient RSA key pair
+        KeyPair recipientKeyPair = RSAEncryption.generateKeyPair();
+        System.out.println("RSA Key Pair Generated!");
+
+        // Step 2: Original transaction
+        String transaction = "Transaction ID: NPCI12345, Amount: 5000 INR";
+        byte[] transactionBytes = transaction.getBytes(StandardCharsets.UTF_8);
+
+        // Step 3: Hybrid encryption
+        HybridEncryption.EncryptedPayload hybridPayload =
+                HybridEncryption.encrypt(
+                        transactionBytes,
+                        recipientKeyPair.getPublic()
+                );
+
+        System.out.println("Original Transaction: " + transaction);
+        System.out.println("Encrypted AES Key Length: " + hybridPayload.encryptedAESKey().length + " bytes");
+        System.out.println("IV Length: " + hybridPayload.iv().length + " bytes");
+        System.out.println("Ciphertext + Tag Length: " + hybridPayload.ciphertextAndTag().length + " bytes");
+
+        // Step 4: Hybrid decryption
+        byte[] decryptedTransactionBytes =
+                HybridEncryption.decrypt(
+                        hybridPayload,
+                        recipientKeyPair.getPrivate()
+                );
+
+        String decryptedTransaction = new String(decryptedTransactionBytes, StandardCharsets.UTF_8);
+        System.out.println("Decrypted Transaction: " + decryptedTransaction);
+        System.out.println("Hybrid Encryption Successful!");
     }
 }
