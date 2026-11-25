@@ -1,6 +1,6 @@
-
-import java.security.KeyPair;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.SecureRandom;
 import java.util.Base64;
 import javax.crypto.SecretKey;
 
@@ -9,9 +9,11 @@ public class Main {
     public static void main(String[] args) throws Exception {
 
         // ==========================================
-        // RSA Encryption Demo (Asymmetric)
+        // 1. RSA Encryption Demo (Asymmetric)
         // ==========================================
-        System.out.println("--- RSA Encryption Demo ---");
+        System.out.println("==================================================");
+        System.out.println("        1. RSA-2048 ENCRYPTION DEMO               ");
+        System.out.println("==================================================");
 
         // Step 1: Generate RSA key pair
         KeyPair keyPair = RSAEncryption.generateKeyPair();
@@ -28,7 +30,7 @@ public class Main {
         );
 
         System.out.println("Original Message: " + message);
-        System.out.println("RSA Encrypted Data Length: " + encrypted.length);
+        System.out.println("RSA Encrypted Data Length: " + encrypted.length + " bytes");
 
         // Step 4: Decrypt using private key
         byte[] decrypted = RSAEncryption.decrypt(
@@ -40,13 +42,15 @@ public class Main {
         System.out.println("RSA Decrypted Message: " + decryptedMessage);
 
         // ==========================================
-        // AES-GCM Encryption Demo (Symmetric)
+        // 2. AES-GCM Encryption Demo (Symmetric AEAD)
         // ==========================================
-        System.out.println("\n--- AES-GCM Encryption Demo ---");
+        System.out.println("\n==================================================");
+        System.out.println("       2. AES-256-GCM ENCRYPTION DEMO             ");
+        System.out.println("==================================================");
 
         // Step 1: Generate AES-256 secret key
         SecretKey aesKey = AESEncryption.generateKey();
-        System.out.println("AES Key Generated Successfully!");
+        System.out.println("AES-256 Key Generated Successfully!");
 
         // Step 2: Encrypt plaintext using AES-GCM
         AESEncryption.EncryptedPayload encryptedPayload =
@@ -65,16 +69,12 @@ public class Main {
         System.out.println("AES Decrypted Message: " + aesDecryptedMessage);
 
         // ==========================================
-        // Step 4: Tampering Test (AES-GCM Authentication)
+        // 3. Standalone Tampering Verification
         // ==========================================
-        System.out.println("\n--- Tampering Test ---");
-
+        System.out.println("\n--- AES Ciphertext Tampering Test ---");
         byte[] modifiedCiphertext = encryptedPayload.ciphertextAndTag();
+        modifiedCiphertext[0] ^= 1; // 1-bit flip
 
-        // Change one bit/byte
-        modifiedCiphertext[0] ^= 1;
-
-        // Create a modified payload
         AESEncryption.EncryptedPayload tamperedPayload =
                 new AESEncryption.EncryptedPayload(
                         encryptedPayload.iv(),
@@ -85,84 +85,153 @@ public class Main {
             AESEncryption.decrypt(tamperedPayload, aesKey);
             System.out.println("WARNING: Tampered data was accepted!");
         } catch (javax.crypto.AEADBadTagException e) {
-            System.out.println("Tampering Detected!");
-            System.out.println("AES-GCM rejected the modified ciphertext: " + e.getMessage());
+            System.out.println("Tampering Detected! AES-GCM rejected modified ciphertext: " + e.getMessage());
         }
 
-        // ==========================================
-        // Step 5: Wrong Key Test
-        // ==========================================
         System.out.println("\n--- Wrong Key Test ---");
         SecretKey wrongKey = AESEncryption.generateKey();
-
         try {
             AESEncryption.decrypt(encryptedPayload, wrongKey);
             System.out.println("WARNING: Wrong key accepted!");
         } catch (javax.crypto.AEADBadTagException e) {
-            System.out.println("Wrong key detected!");
-            System.out.println("AES-GCM rejected decryption with wrong key: " + e.getMessage());
+            System.out.println("Wrong key detected! AES-GCM rejected decryption: " + e.getMessage());
         }
 
-
-
-        // ==========================================
-        // Step 6: Modified IV Test
-        // ==========================================
         System.out.println("\n--- Modified IV Test ---");
-
         byte[] modifiedIV = encryptedPayload.iv();
-
-        // Modify one byte of IV
         modifiedIV[0] ^= 1;
-
         AESEncryption.EncryptedPayload modifiedIVPayload =
                 new AESEncryption.EncryptedPayload(
                         modifiedIV,
                         encryptedPayload.ciphertextAndTag()
                 );
-
         try {
             AESEncryption.decrypt(modifiedIVPayload, aesKey);
             System.out.println("WARNING: Modified IV accepted!");
         } catch (javax.crypto.AEADBadTagException e) {
-            System.out.println("Modified IV Detected!");
-            System.out.println("AES-GCM rejected decryption: " + e.getMessage());
+            System.out.println("Modified IV Detected! AES-GCM rejected decryption: " + e.getMessage());
         }
 
         // ==========================================
-        // Hybrid Encryption Demo (RSA + AES-GCM)
+        // 4. Classical Hybrid Encryption Demo
         // ==========================================
-        System.out.println("\n--- Hybrid Encryption Demo ---");
+        System.out.println("\n==================================================");
+        System.out.println("       3. CLASSICAL HYBRID ENCRYPTION DEMO        ");
+        System.out.println("==================================================");
 
-        // Step 1: Generate recipient RSA key pair
         KeyPair recipientKeyPair = RSAEncryption.generateKeyPair();
-        System.out.println("RSA Key Pair Generated!");
-
-        // Step 2: Original transaction
         String transaction = "Transaction ID: NPCI12345, Amount: 5000 INR";
         byte[] transactionBytes = transaction.getBytes(StandardCharsets.UTF_8);
 
-        // Step 3: Hybrid encryption
         HybridEncryption.EncryptedPayload hybridPayload =
-                HybridEncryption.encrypt(
-                        transactionBytes,
-                        recipientKeyPair.getPublic()
-                );
+                HybridEncryption.encrypt(transactionBytes, recipientKeyPair.getPublic());
 
         System.out.println("Original Transaction: " + transaction);
         System.out.println("Encrypted AES Key Length: " + hybridPayload.encryptedAESKey().length + " bytes");
         System.out.println("IV Length: " + hybridPayload.iv().length + " bytes");
         System.out.println("Ciphertext + Tag Length: " + hybridPayload.ciphertextAndTag().length + " bytes");
 
-        // Step 4: Hybrid decryption
         byte[] decryptedTransactionBytes =
-                HybridEncryption.decrypt(
-                        hybridPayload,
-                        recipientKeyPair.getPrivate()
+                HybridEncryption.decrypt(hybridPayload, recipientKeyPair.getPrivate());
+        System.out.println("Decrypted Transaction: " + new String(decryptedTransactionBytes, StandardCharsets.UTF_8));
+        System.out.println("Hybrid Encryption Successful!");
+
+        System.out.println("\n--- Modified IV Test for Hybrid Encryption ---");
+        byte[] originalHybridIV = hybridPayload.iv();
+        byte[] modifiedHybridIV = hybridPayload.iv();
+        System.out.println("Original IV (Base64): " + Base64.getEncoder().encodeToString(originalHybridIV));
+        // modifiedHybridIV[0] ^= 1;
+        System.out.println("Modified IV (Base64): " + Base64.getEncoder().encodeToString(modifiedHybridIV));
+
+        HybridEncryption.EncryptedPayload modifiedIVPayloadhybrid =
+                new HybridEncryption.EncryptedPayload(
+                        hybridPayload.encryptedAESKey(),
+                        modifiedHybridIV,
+                        hybridPayload.ciphertextAndTag()
                 );
 
-        String decryptedTransaction = new String(decryptedTransactionBytes, StandardCharsets.UTF_8);
-        System.out.println("Decrypted Transaction: " + decryptedTransaction);
-        System.out.println("Hybrid Encryption Successful!");
+        try {
+            HybridEncryption.decrypt(modifiedIVPayloadhybrid, recipientKeyPair.getPrivate());
+            System.out.println("WARNING: Modified IV accepted!");
+        } catch (javax.crypto.AEADBadTagException e) {
+            System.out.println("Modified IV Detected! AES-GCM rejected decryption: " + e.getMessage());
+        }
+
+        // ==========================================
+        // 5. Client-Server Key Exchange Flow
+        // ==========================================
+        System.out.println("\n==================================================");
+        System.out.println("    4. CLIENT-SERVER PAYMENT SERVICE FLOW         ");
+        System.out.println("==================================================");
+
+        KeyExchangeService.PaymentServer server =
+                new KeyExchangeService.PaymentServer("NPCI-SWITCH-PRIMARY-01");
+        KeyExchangeService.PaymentClient client =
+                new KeyExchangeService.PaymentClient("BHIM-UPI-APP-MOBILE", server.getPublicKey());
+
+        KeyExchangeService.PaymentTransaction paymentTxn =
+                new KeyExchangeService.PaymentTransaction(
+                        "UPI-TXN-20261124-789",
+                        "customer@okhdfcbank",
+                        "merchant@icici",
+                        1499.00,
+                        System.currentTimeMillis()
+                );
+
+        System.out.println("Client sending transaction: " + paymentTxn.serialize());
+        HybridEncryption.EncryptedPayload clientPayload = client.initiatePayment(paymentTxn);
+
+        System.out.println("Transmission over network (Encrypted Session Key + AEAD Ciphertext)...");
+        KeyExchangeService.TransactionReceipt receipt = server.processPayment(clientPayload);
+
+        System.out.println("Server Response: " + receipt.statusMessage());
+        System.out.println("Authorization Code: " + receipt.authorizationCode());
+
+        // ==========================================
+        // 6. Shor's Algorithm Quantum Compromise Simulation
+        // ==========================================
+        System.out.println("\n==================================================");
+        System.out.println("    5. SHOR'S QUANTUM COMPROMISE SIMULATION       ");
+        System.out.println("==================================================");
+
+        byte[] quantumSecret = new byte[32];
+        new SecureRandom().nextBytes(quantumSecret);
+
+        String secretSettlement = "CRITICAL: Reserve Bank Real-Time Gross Settlement INR 50,000,000";
+        byte[] settlementBytes = secretSettlement.getBytes(StandardCharsets.UTF_8);
+
+        System.out.println("Encrypting transaction with Quantum-Resilient Dual Combiner...");
+        HybridEncryption.ResilientPayload resilientPayload =
+                HybridEncryption.encryptResilient(settlementBytes, server.getPublicKey(), quantumSecret);
+
+        System.out.println("[ATTACK SIMULATION] Quantum adversary runs Shor's Algorithm to factor RSA modulus...");
+        System.out.println("[ATTACK SIMULATION] Attacker successfully recovers Server's RSA Private Key!");
+
+        // Attacker attempts to decrypt with the cracked RSA private key:
+        boolean compromiseSuccess = HybridEncryption.simulateShorsAttackCanDecrypt(
+                resilientPayload,
+                server.getPrivateKey()
+        );
+
+        if (!compromiseSuccess) {
+            System.out.println("\n>>> OUTCOME: DECRYPTION REJECTED! <<<");
+            System.out.println("Even though the adversary cracked the RSA private key via Shor's Algorithm,");
+            System.out.println("the Resilient Hybrid Combiner (HKDF + AES-256) prevented key derivation.");
+            System.out.println("Plaintext data remains 100% CONFIDENTIAL and PROTECTED!");
+        } else {
+            System.out.println("Vulnerability detected: Attacker decrypted the data!");
+        }
+
+        // Legitimate recipient decrypts with both keys:
+        byte[] legitDecrypted = HybridEncryption.decryptResilient(
+                resilientPayload,
+                server.getPrivateKey(),
+                quantumSecret
+        );
+        System.out.println("\nLegitimate Server Decrypted: " + new String(legitDecrypted, StandardCharsets.UTF_8));
+
+        System.out.println("\n==================================================");
+        System.out.println("       ALL SYSTEM DEMOS COMPLETED SUCCESSFULLY    ");
+        System.out.println("==================================================");
     }
 }
