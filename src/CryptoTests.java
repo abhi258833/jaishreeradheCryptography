@@ -31,6 +31,7 @@ public class CryptoTests {
         runTest("Classical Hybrid Encryption & Decryption Round-Trip", CryptoTests::testClassicalHybridRoundTrip);
         runTest("AEAD Integrity: Reject 1-Bit Flip in AES Ciphertext", CryptoTests::testTamperedCiphertextRejected);
         runTest("AEAD Integrity: Reject 1-Bit Flip in AES Initialization Vector (IV)", CryptoTests::testTamperedIVRejected);
+        runTest("AEAD Integrity: Reject 1-Bit Flip in AES Authentication Tag", CryptoTests::testModifiedAuthTagRejected);
         runTest("RSA Integrity: Reject Tampered / Corrupted Encrypted Session Key", CryptoTests::testTamperedEncryptedKeyRejected);
         runTest("Asymmetric Security: Reject Decryption with Wrong RSA Private Key", CryptoTests::testWrongPrivateKeyRejected);
         runTest("Client-Server Payment Protocol: End-to-End Key Exchange & Processing", CryptoTests::testClientServerPaymentFlow);
@@ -144,6 +145,26 @@ public class CryptoTests {
         try {
             AESEncryption.decrypt(tamperedPayload, key);
             fail("AES-GCM must reject modified IV with AEADBadTagException");
+        } catch (AEADBadTagException expected) {
+            // Expected security rejection
+        }
+    }
+
+    private static void testModifiedAuthTagRejected() throws Exception {
+        SecretKey key = AESEncryption.generateKey();
+        byte[] plaintext = "Transfer INR 100".getBytes(StandardCharsets.UTF_8);
+        AESEncryption.EncryptedPayload payload = AESEncryption.encrypt(plaintext, key);
+
+        // Attacker alters the authentication tag (the last 16 bytes of ciphertextAndTag)
+        byte[] tamperedTag = payload.ciphertextAndTag();
+        tamperedTag[tamperedTag.length - 1] ^= 1; // 1-bit flip in tag
+
+        AESEncryption.EncryptedPayload tamperedPayload =
+                new AESEncryption.EncryptedPayload(payload.iv(), tamperedTag);
+
+        try {
+            AESEncryption.decrypt(tamperedPayload, key);
+            fail("AES-GCM must reject modified authentication tag with AEADBadTagException");
         } catch (AEADBadTagException expected) {
             // Expected security rejection
         }

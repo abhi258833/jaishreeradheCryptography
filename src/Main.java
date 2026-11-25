@@ -112,6 +112,21 @@ public class Main {
             System.out.println("Modified IV Detected! AES-GCM rejected decryption: " + e.getMessage());
         }
 
+        System.out.println("\n--- Modified Authentication Tag Test ---");
+        byte[] modifiedTag = encryptedPayload.ciphertextAndTag();
+        modifiedTag[modifiedTag.length - 1] ^= 1; // Flip 1 bit in 16-byte tag
+        AESEncryption.EncryptedPayload modifiedTagPayload =
+                new AESEncryption.EncryptedPayload(
+                        encryptedPayload.iv(),
+                        modifiedTag
+                );
+        try {
+            AESEncryption.decrypt(modifiedTagPayload, aesKey);
+            System.out.println("WARNING: Modified Tag accepted!");
+        } catch (javax.crypto.AEADBadTagException e) {
+            System.out.println("Modified Tag Detected! AES-GCM rejected decryption: " + e.getMessage());
+        }
+
         // ==========================================
         // 4. Classical Hybrid Encryption Demo
         // ==========================================
@@ -140,7 +155,7 @@ public class Main {
         byte[] originalHybridIV = hybridPayload.iv();
         byte[] modifiedHybridIV = hybridPayload.iv();
         System.out.println("Original IV (Base64): " + Base64.getEncoder().encodeToString(originalHybridIV));
-        // modifiedHybridIV[0] ^= 1;
+        modifiedHybridIV[0] ^= 1; // 1-bit flip in IV
         System.out.println("Modified IV (Base64): " + Base64.getEncoder().encodeToString(modifiedHybridIV));
 
         HybridEncryption.EncryptedPayload modifiedIVPayloadhybrid =
@@ -155,6 +170,31 @@ public class Main {
             System.out.println("WARNING: Modified IV accepted!");
         } catch (javax.crypto.AEADBadTagException e) {
             System.out.println("Modified IV Detected! AES-GCM rejected decryption: " + e.getMessage());
+        }
+
+        System.out.println("\n--- Wrong RSA Private Key Test ---");
+        KeyPair wrongRSAKeyPair = RSAEncryption.generateKeyPair();
+        try {
+            HybridEncryption.decrypt(hybridPayload, wrongRSAKeyPair.getPrivate());
+            System.out.println("WARNING: Decryption succeeded with wrong RSA key!");
+        } catch (java.security.GeneralSecurityException e) {
+            System.out.println("Wrong RSA Key Detected! Rejection: " + e.getMessage());
+        }
+
+        System.out.println("\n--- Tampered Encrypted AES Key Test ---");
+        byte[] tamperedAESKey = hybridPayload.encryptedAESKey();
+        tamperedAESKey[10] ^= 1; // Flip 1 bit in wrapped session key
+        HybridEncryption.EncryptedPayload tamperedKeyPayload =
+                new HybridEncryption.EncryptedPayload(
+                        tamperedAESKey,
+                        hybridPayload.iv(),
+                        hybridPayload.ciphertextAndTag()
+                );
+        try {
+            HybridEncryption.decrypt(tamperedKeyPayload, recipientKeyPair.getPrivate());
+            System.out.println("WARNING: Tampered encrypted AES key accepted!");
+        } catch (java.security.GeneralSecurityException e) {
+            System.out.println("Tampered Encrypted Key Detected! Rejection: " + e.getMessage());
         }
 
         // ==========================================
