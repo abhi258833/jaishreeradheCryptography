@@ -62,7 +62,7 @@ During development using AI coding assistants (ChatGPT / Copilot / Gemini), seve
 
 ## 3. Recommendation 2: Automated Testing & Tamper Validation
 
-A standalone test suite is implemented in `CryptoTests.java` with **11 comprehensive security and functional tests**:
+A standalone test suite is implemented in `CryptoTests.java` with **12 comprehensive security and functional tests**:
 
 | Test ID | Test Category | Target Vector | Expected Behavior | Result |
 |---|---|---|---|---|
@@ -71,12 +71,13 @@ A standalone test suite is implemented in `CryptoTests.java` with **11 comprehen
 | **TEST-03** | Functional | Classical Hybrid | Complete transaction envelope round-trip | **PASS** |
 | **TEST-04** | Tamper | AES Ciphertext | 1-bit flip in transit $\rightarrow$ rejected via `AEADBadTagException` | **PASS** |
 | **TEST-05** | Tamper | Initialization Vector | 1-bit flip in IV $\rightarrow$ rejected via `AEADBadTagException` | **PASS** |
-| **TEST-06** | Tamper | Encrypted Session Key | 1-bit flip in RSA block $\rightarrow$ rejected via `GeneralSecurityException` | **PASS** |
-| **TEST-07** | Negative | Unauthorized Recipient | Decryption attempted with wrong RSA private key rejected | **PASS** |
-| **TEST-08** | Integration | Client-Server Service | End-to-end UPI payment approval | **PASS** |
-| **TEST-09** | Security | MitM Network Attack | Intercepted in-transit transaction modification aborted | **PASS** |
-| **TEST-10** | Functional | Resilient Hybrid | Dual-Secret Combiner (HKDF) round-trip | **PASS** |
-| **TEST-11** | Simulation | Shor's Quantum Attack | RSA broken; Resilient Hybrid prevents data compromise | **PASS** |
+| **TEST-06** | Tamper | Authentication Tag | 1-bit flip in tag $\rightarrow$ rejected via `AEADBadTagException` | **PASS** |
+| **TEST-07** | Tamper | Encrypted Session Key | 1-bit flip in RSA block $\rightarrow$ rejected via `GeneralSecurityException` | **PASS** |
+| **TEST-08** | Negative | Unauthorized Recipient | Decryption attempted with wrong RSA private key rejected | **PASS** |
+| **TEST-09** | Integration | Client-Server Service | End-to-End UPI payment approval | **PASS** |
+| **TEST-10** | Security | MitM Network Attack | Intercepted in-transit transaction modification aborted | **PASS** |
+| **TEST-11** | Functional | Resilient Hybrid | Dual-Secret Combiner (HKDF) round-trip | **PASS** |
+| **TEST-12** | Simulation | Shor's Quantum Attack | RSA broken; Resilient Hybrid prevents data compromise | **PASS** |
 
 ---
 

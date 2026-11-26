@@ -1,4 +1,3 @@
-
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.Objects;
@@ -28,14 +27,25 @@ public class AESEncryption {
         return keyGenerator.generateKey();
     }
 
-    // Encrypt data using AES-GCM
+    // Encrypt data using AES-GCM (backward compatibility)
     public static EncryptedPayload encrypt(
             byte[] plaintext,
             SecretKey secretKey
     ) throws GeneralSecurityException {
 
+        return encrypt(plaintext, secretKey, new byte[0]);
+    }
+
+    // Encrypt data using AES-GCM with Additional Authenticated Data (AAD)
+    public static EncryptedPayload encrypt(
+            byte[] plaintext,
+            SecretKey secretKey,
+            byte[] aad
+    ) throws GeneralSecurityException {
+
         Objects.requireNonNull(plaintext, "Plaintext cannot be null");
         Objects.requireNonNull(secretKey, "Secret key cannot be null");
+        Objects.requireNonNull(aad, "AAD cannot be null");
 
         // Generate a random 12-byte IV
         byte[] iv = new byte[IV_SIZE];
@@ -52,20 +62,34 @@ public class AESEncryption {
         // Initialize encryption
         cipher.init(Cipher.ENCRYPT_MODE, secretKey, spec);
 
+        // Authenticate additional data before processing ciphertext
+        cipher.updateAAD(aad);
+
         // Encrypt plaintext and generate authentication tag
         byte[] ciphertextAndTag = cipher.doFinal(plaintext);
 
         return new EncryptedPayload(iv, ciphertextAndTag);
     }
 
-    // Decrypt data using AES-GCM
+    // Decrypt data using AES-GCM (backward compatibility)
     public static byte[] decrypt(
             EncryptedPayload payload,
             SecretKey secretKey
     ) throws GeneralSecurityException {
 
+        return decrypt(payload, secretKey, new byte[0]);
+    }
+
+    // Decrypt data using AES-GCM with Additional Authenticated Data (AAD)
+    public static byte[] decrypt(
+            EncryptedPayload payload,
+            SecretKey secretKey,
+            byte[] aad
+    ) throws GeneralSecurityException {
+
         Objects.requireNonNull(payload, "Payload cannot be null");
         Objects.requireNonNull(secretKey, "Secret key cannot be null");
+        Objects.requireNonNull(aad, "AAD cannot be null");
 
         byte[] iv = payload.iv();
         byte[] ciphertextAndTag = payload.ciphertextAndTag();
@@ -85,6 +109,9 @@ public class AESEncryption {
                 new GCMParameterSpec(TAG_SIZE, iv);
 
         cipher.init(Cipher.DECRYPT_MODE, secretKey, spec);
+
+        // Authenticate additional data before verifying ciphertext & tag
+        cipher.updateAAD(aad);
 
         // Authentication is verified during doFinal()
         return cipher.doFinal(ciphertextAndTag);

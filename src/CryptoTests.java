@@ -32,6 +32,10 @@ public class CryptoTests {
         runTest("AEAD Integrity: Reject 1-Bit Flip in AES Ciphertext", CryptoTests::testTamperedCiphertextRejected);
         runTest("AEAD Integrity: Reject 1-Bit Flip in AES Initialization Vector (IV)", CryptoTests::testTamperedIVRejected);
         runTest("AEAD Integrity: Reject 1-Bit Flip in AES Authentication Tag", CryptoTests::testModifiedAuthTagRejected);
+        runTest("AES-GCM AAD: Authenticated Data Round-Trip Verification", CryptoTests::testAADRoundTrip);
+        runTest("AES-GCM AAD: Reject 1-Bit Flip in Additional Authenticated Data", CryptoTests::testModifiedAADRejected);
+        runTest("AES-GCM AAD: Reject Missing or Mismatched Additional Authenticated Data", CryptoTests::testWrongOrMissingAADRejected);
+        runTest("AES-GCM Backward Compatibility: 2-Parameter Encrypt/Decrypt (Empty AAD)", CryptoTests::testBackwardCompatibilityWithoutAAD);
         runTest("RSA Integrity: Reject Tampered / Corrupted Encrypted Session Key", CryptoTests::testTamperedEncryptedKeyRejected);
         runTest("Asymmetric Security: Reject Decryption with Wrong RSA Private Key", CryptoTests::testWrongPrivateKeyRejected);
         runTest("Client-Server Payment Protocol: End-to-End Key Exchange & Processing", CryptoTests::testClientServerPaymentFlow);
@@ -168,6 +172,76 @@ public class CryptoTests {
         } catch (AEADBadTagException expected) {
             // Expected security rejection
         }
+    }
+
+    private static void testAADRoundTrip() throws Exception {
+        SecretKey key = AESEncryption.generateKey();
+        byte[] plaintext = "NPCI Account Balance: INR 1,500,000".getBytes(StandardCharsets.UTF_8);
+        byte[] aad = "TxnID: TXN-NPCI-20261125-001 | Payer: user@oksbi | Payee: merchant@icici".getBytes(StandardCharsets.UTF_8);
+
+        AESEncryption.EncryptedPayload payload = AESEncryption.encrypt(plaintext, key, aad);
+        byte[] decrypted = AESEncryption.decrypt(payload, key, aad);
+
+        assertTrue(Arrays.equals(plaintext, decrypted), "Decrypted plaintext with AAD must match original");
+    }
+
+    private static void testModifiedAADRejected() throws Exception {
+        SecretKey key = AESEncryption.generateKey();
+        byte[] plaintext = "Payment Authorization Token".getBytes(StandardCharsets.UTF_8);
+        byte[] aad = "TxnID: TXN-NPCI-001 | Amount: 5000.00".getBytes(StandardCharsets.UTF_8);
+
+        AESEncryption.EncryptedPayload payload = AESEncryption.encrypt(plaintext, key, aad);
+
+        // Attacker modifies 1 byte in AAD (e.g. attempting to tamper with unencrypted metadata)
+        byte[] tamperedAAD = aad.clone();
+        tamperedAAD[0] ^= 1;
+
+        try {
+            AESEncryption.decrypt(payload, key, tamperedAAD);
+            fail("AES-GCM must reject modified AAD with AEADBadTagException");
+        } catch (AEADBadTagException expected) {
+            // Expected security rejection: tag mismatch because AAD was modified
+        }
+    }
+
+    private static void testWrongOrMissingAADRejected() throws Exception {
+        SecretKey key = AESEncryption.generateKey();
+        byte[] plaintext = "Confidential Banking Record".getBytes(StandardCharsets.UTF_8);
+        byte[] aad = "TxnID: TXN-AUTH-9999".getBytes(StandardCharsets.UTF_8);
+
+        AESEncryption.EncryptedPayload payload = AESEncryption.encrypt(plaintext, key, aad);
+
+        // Attempt 1: Attempt decryption with empty AAD (missing AAD)
+        try {
+            AESEncryption.decrypt(payload, key, new byte[0]);
+            fail("AES-GCM must reject decryption when AAD is omitted (empty AAD)");
+        } catch (AEADBadTagException expected) {
+            // Expected security rejection
+        }
+
+        // Attempt 2: Attempt decryption with different/wrong AAD
+        byte[] wrongAAD = "TxnID: TXN-AUTH-0000".getBytes(StandardCharsets.UTF_8);
+        try {
+            AESEncryption.decrypt(payload, key, wrongAAD);
+            fail("AES-GCM must reject decryption with mismatched AAD");
+        } catch (AEADBadTagException expected) {
+            // Expected security rejection
+        }
+    }
+
+    private static void testBackwardCompatibilityWithoutAAD() throws Exception {
+        SecretKey key = AESEncryption.generateKey();
+        byte[] plaintext = "Legacy UPI Transaction without AAD".getBytes(StandardCharsets.UTF_8);
+
+        // Uses the existing 2-parameter methods (defaults to empty AAD)
+        AESEncryption.EncryptedPayload payload = AESEncryption.encrypt(plaintext, key);
+        byte[] decrypted = AESEncryption.decrypt(payload, key);
+
+        assertTrue(Arrays.equals(plaintext, decrypted), "Legacy 2-parameter encrypt/decrypt must succeed");
+
+        // Verify that 2-parameter ciphertext can also be decrypted by 3-parameter decrypt with explicit empty AAD
+        byte[] decryptedWithEmptyAAD = AESEncryption.decrypt(payload, key, new byte[0]);
+        assertTrue(Arrays.equals(plaintext, decryptedWithEmptyAAD), "2-parameter payload must decrypt with explicit empty AAD");
     }
 
     private static void testTamperedEncryptedKeyRejected() throws Exception {
